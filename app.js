@@ -1,7 +1,7 @@
 // ======================================
-// GitHub Manager Premium FINAL REBUILD
-// app.js PART 3A
-// LOGIN + CORE + REPO
+// app.js PART 1 (NO ERROR)
+// CORE + LOGIN + UI + REPO MANAGER
+// tempel PART 2 di bawah file ini
 // ======================================
 
 const API = "https://api.github.com";
@@ -20,11 +20,11 @@ let selectedFiles = [];
 let editor = null;
 
 // ======================================
-// INIT
+// START
 // ======================================
 window.addEventListener("DOMContentLoaded", async () => {
   initEditor();
-  bindGlobal();
+  bindEvents();
 
   if (token) {
     await loginGitHub(true);
@@ -32,7 +32,7 @@ window.addEventListener("DOMContentLoaded", async () => {
 });
 
 // ======================================
-// EDITOR INIT
+// ACE EDITOR
 // ======================================
 function initEditor() {
   if (!window.ace) return;
@@ -52,14 +52,39 @@ function initEditor() {
 }
 
 // ======================================
-// GLOBAL EVENTS
+// EVENTS
 // ======================================
-function bindGlobal() {
-  const fileUpload = document.getElementById("fileUpload");
-  const folderUpload = document.getElementById("folderUpload");
+function bindEvents() {
+  const fileInput = document.getElementById("fileUpload");
+  const folderInput = document.getElementById("folderUpload");
 
-  if (fileUpload) fileUpload.addEventListener("change", uploadFiles);
-  if (folderUpload) folderUpload.addEventListener("change", uploadFolder);
+  if (fileInput) {
+    fileInput.addEventListener("change", uploadFiles);
+  }
+
+  if (folderInput) {
+    folderInput.addEventListener("change", uploadFolder);
+  }
+
+  document.addEventListener("keydown", function(e){
+
+    // ctrl+s
+    if (e.ctrlKey && e.key.toLowerCase() === "s") {
+      e.preventDefault();
+
+      const page = document.getElementById("editor");
+      if (page.classList.contains("active-page")) {
+        saveEditorFile();
+      }
+    }
+
+    // esc close sidebar
+    if (e.key === "Escape") {
+      const side = document.getElementById("sidebar");
+      side.classList.remove("show");
+    }
+
+  });
 }
 
 // ======================================
@@ -72,37 +97,42 @@ function headers() {
   };
 }
 
-function showLoading(state = true) {
+function showLoading(status = true) {
   const el = document.getElementById("loadingOverlay");
   if (!el) return;
-  el.classList.toggle("hidden", !state);
+
+  el.classList.toggle("hidden", !status);
 }
 
-function toast(message = "") {
+function toast(msg = "") {
   const wrap = document.getElementById("toastWrap");
-  if (!wrap) return alert(message);
 
-  const div = document.createElement("div");
-  div.className = "toast";
-  div.textContent = message;
+  if (!wrap) {
+    alert(msg);
+    return;
+  }
 
-  wrap.appendChild(div);
+  const box = document.createElement("div");
+  box.className = "toast";
+  box.textContent = msg;
+
+  wrap.appendChild(box);
 
   setTimeout(() => {
-    div.remove();
+    box.remove();
   }, 3200);
 }
 
-function safeEncode(text = "") {
+function encodeBase64(text = "") {
   return btoa(unescape(encodeURIComponent(text)));
 }
 
-function safeDecode(text = "") {
+function decodeBase64(text = "") {
   return decodeURIComponent(escape(atob(text)));
 }
 
-function escapeHtml(str = "") {
-  return str
+function esc(str = "") {
+  return String(str)
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
@@ -131,7 +161,7 @@ async function loginGitHub(auto = false) {
     });
 
     if (!res.ok) {
-      throw new Error("Token tidak valid / scope kurang.");
+      throw new Error("Token tidak valid.");
     }
 
     currentUser = await res.json();
@@ -140,8 +170,8 @@ async function loginGitHub(auto = false) {
 
     fillProfile();
 
-    document.getElementById("loginPage").classList.add("hidden");
-    document.getElementById("appPage").classList.remove("hidden");
+    document.getElementById("loginPage").style.display = "none";
+    document.getElementById("appPage").style.display = "grid";
 
     await loadRepos();
 
@@ -172,25 +202,55 @@ function fillProfile() {
 }
 
 // ======================================
-// NAVIGATION
+// PAGE UI
 // ======================================
 function showPage(id, btn = null) {
+
   document.querySelectorAll(".content")
     .forEach(el => el.classList.remove("active-page"));
 
   const page = document.getElementById(id);
-  if (page) page.classList.add("active-page");
+  if (page) {
+    page.classList.add("active-page");
+  }
 
   document.querySelectorAll(".menu-btn")
     .forEach(el => el.classList.remove("active"));
 
-  if (btn) btn.classList.add("active");
+  if (btn) {
+    btn.classList.add("active");
+  } else {
+    autoMenuActive(id);
+  }
 
-  const title = id.charAt(0).toUpperCase() + id.slice(1);
-  document.getElementById("pageTitle").textContent = title;
+  const title =
+    id.charAt(0).toUpperCase() + id.slice(1);
+
+  document.getElementById("pageTitle").textContent =
+    title;
 
   document.getElementById("sidebar")
     .classList.remove("show");
+}
+
+function autoMenuActive(id) {
+  const ids = [
+    "dashboard",
+    "repos",
+    "files",
+    "editor",
+    "pages",
+    "settings"
+  ];
+
+  const idx = ids.indexOf(id);
+
+  const menus =
+    document.querySelectorAll(".menu-btn");
+
+  if (menus[idx]) {
+    menus[idx].classList.add("active");
+  }
 }
 
 function toggleSidebar() {
@@ -199,7 +259,7 @@ function toggleSidebar() {
 }
 
 // ======================================
-// REPOSITORY LOAD
+// REPOSITORY
 // ======================================
 async function loadRepos() {
   try {
@@ -210,7 +270,9 @@ async function loadRepos() {
       { headers: headers() }
     );
 
-    if (!res.ok) throw new Error();
+    if (!res.ok) {
+      throw new Error();
+    }
 
     repos = await res.json();
 
@@ -225,23 +287,29 @@ async function loadRepos() {
   }
 }
 
-function renderRepos(list = []) {
+function renderRepos(data = []) {
   const box = document.getElementById("repoList");
   if (!box) return;
 
-  if (!list.length) {
-    box.innerHTML = `<div class="item"><div class="item-left"><h4>Tidak ada repository</h4></div></div>`;
+  if (!data.length) {
+    box.innerHTML = `
+      <div class="item">
+        <div class="item-left">
+          <h4>Tidak ada repository</h4>
+        </div>
+      </div>
+    `;
     return;
   }
 
-  box.innerHTML = list.map(repo => `
+  box.innerHTML = data.map(repo => `
     <div class="item">
 
       <div class="item-left">
-        <h4>${escapeHtml(repo.name)}</h4>
+        <h4>${esc(repo.name)}</h4>
         <p>
           ${repo.private ? "Private" : "Public"} •
-          ${escapeHtml(repo.default_branch)}
+          ${esc(repo.default_branch)}
         </p>
       </div>
 
@@ -268,10 +336,10 @@ function updateStats() {
     repos.length;
 
   document.getElementById("publicRepo").textContent =
-    repos.filter(r => !r.private).length;
+    repos.filter(x => !x.private).length;
 
   document.getElementById("privateRepo").textContent =
-    repos.filter(r => r.private).length;
+    repos.filter(x => x.private).length;
 }
 
 function fillRepoSelectors() {
@@ -279,21 +347,16 @@ function fillRepoSelectors() {
     `<option value="${repo.name}">${repo.name}</option>`
   ).join("");
 
-  const ids = ["repoSelector", "pagesRepo"];
-
-  ids.forEach(id => {
+  ["repoSelector","pagesRepo"].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.innerHTML = html;
   });
 
-  if (repos.length) {
+  if (repos.length && !currentRepo) {
     currentRepo = repos[0].name;
   }
 }
 
-// ======================================
-// SEARCH REPO
-// ======================================
 function filterRepos(keyword = "") {
   keyword = keyword.toLowerCase().trim();
 
@@ -309,9 +372,6 @@ function filterRepos(keyword = "") {
   renderRepos(filtered);
 }
 
-// ======================================
-// CREATE REPO
-// ======================================
 async function createRepo() {
   try {
     const name =
@@ -321,7 +381,7 @@ async function createRepo() {
       document.getElementById("repoVisibility").value === "true";
 
     if (!name) {
-      toast("Nama repository kosong.");
+      toast("Nama repo kosong.");
       return;
     }
 
@@ -334,37 +394,35 @@ async function createRepo() {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        name,
+        name: name,
         private: isPrivate,
         auto_init: true
       })
     });
 
     if (!res.ok) {
-      throw new Error("Gagal membuat repository.");
+      throw new Error("Gagal membuat repo.");
     }
 
     document.getElementById("newRepoName").value = "";
 
-    toast("Repository berhasil dibuat.");
+    toast("Repository dibuat.");
 
     await loadRepos();
 
   } catch (err) {
-    toast(err.message || "Create repo gagal.");
+    toast(err.message || "Create gagal.");
   } finally {
     showLoading(false);
   }
 }
 
-// ======================================
-// DELETE REPO
-// ======================================
 async function deleteRepo(name = "") {
-  const verify = prompt(`Ketik nama repo:\n${name}`);
+  const confirmName =
+    prompt("Ketik nama repository:\n" + name);
 
-  if (verify !== name) {
-    toast("Konfirmasi dibatalkan.");
+  if (confirmName !== name) {
+    toast("Dibatalkan.");
     return;
   }
 
@@ -379,8 +437,8 @@ async function deleteRepo(name = "") {
       }
     );
 
-    if (![204, 200].includes(res.status)) {
-      throw new Error("Gagal hapus repository.");
+    if (![204,200].includes(res.status)) {
+      throw new Error("Gagal hapus repo.");
     }
 
     toast("Repository dihapus.");
@@ -394,24 +452,22 @@ async function deleteRepo(name = "") {
   }
 }
 
-// ======================================
-// OPEN REPO
-// ======================================
 function openRepo(name, branch = "main") {
   currentRepo = name;
   currentBranch = branch;
   currentPath = "";
 
-  const selector = document.getElementById("repoSelector");
-  if (selector) selector.value = name;
+  const select =
+    document.getElementById("repoSelector");
+
+  if (select) select.value = name;
 
   showPage("files");
-
   repoChanged();
 }
 
 // ======================================
-// BRANCHES
+// BRANCH
 // ======================================
 async function repoChanged() {
   if (!currentRepo) return;
@@ -426,43 +482,45 @@ async function repoChanged() {
 
     if (!res.ok) throw new Error();
 
-    const branches = await res.json();
+    const data = await res.json();
 
-    const select = document.getElementById("branchSelector");
+    const select =
+      document.getElementById("branchSelector");
 
-    select.innerHTML = branches.map(branch => `
+    select.innerHTML = data.map(branch => `
       <option value="${branch.name}">
         ${branch.name}
       </option>
     `).join("");
 
-    currentBranch = branches[0]?.name || "main";
+    currentBranch =
+      data[0]?.name || "main";
+
     select.value = currentBranch;
 
-    if (typeof loadFiles === "function") {
-      loadFiles("");
-    }
+    loadFiles("");
 
   } catch {
-    toast("Gagal load branch.");
+    toast("Gagal memuat branch.");
   } finally {
     showLoading(false);
   }
 }
 
 function branchChanged() {
-  const select = document.getElementById("branchSelector");
-  currentBranch = select.value || "main";
+  const select =
+    document.getElementById("branchSelector");
 
-  if (typeof loadFiles === "function") {
-    loadFiles("");
-  }
+  currentBranch =
+    select.value || "main";
+
+  loadFiles("");
 }
 
 // ======================================
-// GitHub Manager Premium FINAL REBUILD
-// app.js PART 3B
-// FILES + EDITOR + UPLOAD + RENAME
+// app.js PART 2 (NO ERROR)
+// FILES + EDITOR + PAGES + SETTINGS
+// tempel di bawah PART 1
 // ======================================
 
 // ======================================
@@ -470,18 +528,20 @@ function branchChanged() {
 // ======================================
 async function loadFiles(path = "") {
   try {
+    if (!currentRepo) {
+      toast("Pilih repository dulu.");
+      return;
+    }
+
     currentPath = path;
     selectedFiles = [];
 
     showLoading(true);
 
-    const url =
-      `${API}/repos/${currentUser.login}/${currentRepo}` +
-      `/contents/${path}?ref=${currentBranch}`;
-
-    const res = await fetch(url, {
-      headers: headers()
-    });
+    const res = await fetch(
+      `${API}/repos/${currentUser.login}/${currentRepo}/contents/${path}?ref=${currentBranch}`,
+      { headers: headers() }
+    );
 
     if (!res.ok) throw new Error();
 
@@ -489,8 +549,8 @@ async function loadFiles(path = "") {
 
     renderFiles(Array.isArray(data) ? data : []);
 
-    document.getElementById("breadcrumb").textContent =
-      path || "root";
+    const bc = document.getElementById("breadcrumb");
+    if (bc) bc.textContent = path || "root";
 
   } catch {
     toast("Gagal memuat file.");
@@ -515,7 +575,9 @@ function renderFiles(files = []) {
   }
 
   files.sort((a, b) => {
-    if (a.type === b.type) return a.name.localeCompare(b.name);
+    if (a.type === b.type) {
+      return a.name.localeCompare(b.name);
+    }
     return a.type === "dir" ? -1 : 1;
   });
 
@@ -529,7 +591,7 @@ function renderFiles(files = []) {
           <span></span>
         </label>
 
-        <h4>${escapeHtml(file.name)}</h4>
+        <h4>${esc(file.name)}</h4>
         <p>${file.type}</p>
       </div>
 
@@ -537,18 +599,14 @@ function renderFiles(files = []) {
 
         ${
           file.type === "dir"
-          ? `
-          <button class="btn"
-            onclick="loadFiles('${file.path}')">
-            Open
-          </button>
-          `
-          : `
-          <button class="btn"
-            onclick="openFile('${file.path}')">
-            Edit
-          </button>
-          `
+          ? `<button class="btn"
+               onclick="loadFiles('${file.path}')">
+               Open
+             </button>`
+          : `<button class="btn"
+               onclick="openFile('${file.path}')">
+               Edit
+             </button>`
         }
 
         <button class="btn"
@@ -557,7 +615,7 @@ function renderFiles(files = []) {
         </button>
 
         <button class="btn danger"
-          onclick="deleteFile('${file.path}','${file.sha}')">
+          onclick="deleteFile('${file.path}','${file.sha || ""}')">
           Delete
         </button>
 
@@ -581,7 +639,7 @@ function toggleSelectFile(path, checked) {
 // ======================================
 // OPEN FILE
 // ======================================
-async function openFile(path) {
+async function openFile(path = "") {
   try {
     showLoading(true);
 
@@ -595,17 +653,17 @@ async function openFile(path) {
     const file = await res.json();
 
     currentFile = path;
-    currentSha = file.sha;
+    currentSha = file.sha || "";
 
     const content =
-      safeDecode(file.content.replace(/\n/g, ""));
+      decodeBase64((file.content || "").replace(/\n/g, ""));
 
     editor.setValue(content, -1);
 
     detectMode(path);
 
-    document.getElementById("editorPath").textContent =
-      path;
+    const ep = document.getElementById("editorPath");
+    if (ep) ep.textContent = path;
 
     showPage("editor");
 
@@ -621,7 +679,7 @@ async function openFile(path) {
 // ======================================
 async function saveEditorFile() {
   try {
-    if (!currentFile) {
+    if (!currentRepo || !currentFile) {
       toast("Tidak ada file aktif.");
       return;
     }
@@ -632,7 +690,7 @@ async function saveEditorFile() {
 
     const body = {
       message: "Update via GitHub Manager",
-      content: safeEncode(content),
+      content: encodeBase64(content),
       branch: currentBranch
     };
 
@@ -656,13 +714,12 @@ async function saveEditorFile() {
 
     const data = await res.json();
 
-    currentSha = data.content?.sha || "";
+    currentSha =
+      data.content?.sha || currentSha;
 
-    toast("File berhasil disimpan.");
+    toast("File disimpan.");
 
-    if (typeof loadFiles === "function") {
-      loadFiles(currentPath);
-    }
+    loadFiles(currentPath);
 
   } catch {
     toast("Gagal menyimpan file.");
@@ -675,12 +732,12 @@ async function saveEditorFile() {
 // NEW FILE / FOLDER
 // ======================================
 function newFilePrompt() {
-  const name = prompt("Nama file baru:");
+  const name = prompt("Nama file:");
+
   if (!name) return;
 
-  currentFile = currentPath
-    ? currentPath + "/" + name
-    : name;
+  currentFile =
+    currentPath ? currentPath + "/" + name : name;
 
   currentSha = "";
 
@@ -695,12 +752,14 @@ function newFilePrompt() {
 }
 
 async function newFolderPrompt() {
-  const name = prompt("Nama folder baru:");
+  const name = prompt("Nama folder:");
+
   if (!name) return;
 
-  currentFile = currentPath
-    ? currentPath + "/" + name + "/.gitkeep"
-    : name + "/.gitkeep";
+  currentFile =
+    currentPath
+      ? currentPath + "/" + name + "/.gitkeep"
+      : name + "/.gitkeep";
 
   currentSha = "";
 
@@ -708,11 +767,11 @@ async function newFolderPrompt() {
 
   await saveEditorFile();
 
-  toast("Folder berhasil dibuat.");
+  toast("Folder dibuat.");
 }
 
 // ======================================
-// DELETE FILE
+// DELETE
 // ======================================
 async function deleteFile(path, sha) {
   if (!confirm("Hapus item ini?")) return;
@@ -730,7 +789,7 @@ async function deleteFile(path, sha) {
         },
         body: JSON.stringify({
           message: "Delete via GitHub Manager",
-          sha,
+          sha: sha,
           branch: currentBranch
         })
       }
@@ -738,12 +797,12 @@ async function deleteFile(path, sha) {
 
     if (!res.ok) throw new Error();
 
-    toast("Berhasil dihapus.");
+    toast("Dihapus.");
 
     loadFiles(currentPath);
 
   } catch {
-    toast("Gagal menghapus.");
+    toast("Gagal hapus.");
   } finally {
     showLoading(false);
   }
@@ -758,17 +817,10 @@ async function deleteSelectedFiles() {
   if (!confirm("Hapus file terpilih?")) return;
 
   for (const path of selectedFiles) {
-    try {
-      const res = await fetch(
-        `${API}/repos/${currentUser.login}/${currentRepo}/contents/${path}?ref=${currentBranch}`,
-        { headers: headers() }
-      );
-
-      const file = await res.json();
-
-      await deleteFile(path, file.sha);
-
-    } catch {}
+    const sha = await getShaIfExists(path);
+    if (sha) {
+      await deleteFile(path, sha);
+    }
   }
 
   selectedFiles = [];
@@ -776,36 +828,37 @@ async function deleteSelectedFiles() {
 }
 
 // ======================================
-// RENAME
+// RENAME FILE
 // ======================================
 async function renamePrompt(oldPath, type) {
   const oldName = oldPath.split("/").pop();
 
   const newName = prompt("Nama baru:", oldName);
+
   if (!newName || newName === oldName) return;
 
   if (type === "dir") {
-    toast("Rename folder gunakan manual copy.");
+    toast("Rename folder manual.");
     return;
   }
 
   try {
     showLoading(true);
 
-    const getRes = await fetch(
+    const res = await fetch(
       `${API}/repos/${currentUser.login}/${currentRepo}/contents/${oldPath}?ref=${currentBranch}`,
       { headers: headers() }
     );
 
-    const file = await getRes.json();
+    const file = await res.json();
 
     const content =
-      safeDecode(file.content.replace(/\n/g, ""));
+      decodeBase64((file.content || "").replace(/\n/g, ""));
 
     const parent =
       oldPath.includes("/")
-      ? oldPath.substring(0, oldPath.lastIndexOf("/")) + "/"
-      : "";
+        ? oldPath.substring(0, oldPath.lastIndexOf("/")) + "/"
+        : "";
 
     const newPath = parent + newName;
 
@@ -820,7 +873,7 @@ async function renamePrompt(oldPath, type) {
         },
         body: JSON.stringify({
           message: "Rename file",
-          content: safeEncode(content),
+          content: encodeBase64(content),
           branch: currentBranch
         })
       }
@@ -855,7 +908,7 @@ async function renamePrompt(oldPath, type) {
 }
 
 // ======================================
-// UPLOAD FILES
+// UPLOAD
 // ======================================
 function triggerUpload() {
   document.getElementById("fileUpload").click();
@@ -871,9 +924,10 @@ async function uploadFiles(e) {
   for (const file of files) {
     const text = await file.text();
 
-    currentFile = currentPath
-      ? currentPath + "/" + file.name
-      : file.name;
+    currentFile =
+      currentPath
+        ? currentPath + "/" + file.name
+        : file.name;
 
     currentSha = await getShaIfExists(currentFile);
 
@@ -931,8 +985,10 @@ function findReplace() {
 }
 
 function fullscreenEditor() {
-  document.getElementById("aceEditor")
-    .requestFullscreen();
+  const el = document.getElementById("aceEditor");
+  if (el.requestFullscreen) {
+    el.requestFullscreen();
+  }
 }
 
 function detectMode(path = "") {
@@ -957,12 +1013,6 @@ function detectMode(path = "") {
 }
 
 // ======================================
-// GitHub Manager Premium FINAL REBUILD
-// app.js PART 3C
-// PAGES + SETTINGS + FINAL PATCH
-// ======================================
-
-// ======================================
 // GITHUB PAGES
 // ======================================
 async function enablePages() {
@@ -974,14 +1024,11 @@ async function enablePages() {
       document.getElementById("pagesBranch").value;
 
     if (!repo) {
-      toast("Pilih repository.");
+      toast("Pilih repo.");
       return;
     }
 
     showLoading(true);
-
-    currentRepo = repo;
-    currentBranch = branch;
 
     const res = await fetch(
       `${API}/repos/${currentUser.login}/${repo}/pages`,
@@ -1004,12 +1051,12 @@ async function enablePages() {
       throw new Error();
     }
 
-    toast("GitHub Pages diproses.");
+    toast("Pages diproses.");
 
     await checkPagesStatus(repo);
 
   } catch {
-    toast("Gagal mengaktifkan Pages.");
+    toast("Gagal enable pages.");
   } finally {
     showLoading(false);
   }
@@ -1026,57 +1073,39 @@ async function checkPagesStatus(repo) {
 
     const data = await res.json();
 
-    const url =
-      data.html_url ||
-      `https://${currentUser.login}.github.io/${repo}/`;
-
     document.getElementById("pagesStatus").innerHTML = `
       <b>Status:</b> Active<br>
-      <b>URL:</b> 
-      <a href="${url}" target="_blank">${url}</a>
+      <b>URL:</b> ${data.html_url || "-"}
     `;
 
   } catch {}
 }
 
-// ======================================
-// CNAME
-// ======================================
 async function setCNAME() {
-  try {
-    const repo =
-      document.getElementById("pagesRepo").value;
+  const domain =
+    document.getElementById("cnameInput").value.trim();
 
-    const branch =
-      document.getElementById("pagesBranch").value;
+  const repo =
+    document.getElementById("pagesRepo").value;
 
-    const domain =
-      document.getElementById("cnameInput").value.trim();
+  const branch =
+    document.getElementById("pagesBranch").value;
 
-    if (!repo || !domain) {
-      toast("Repo / domain kosong.");
-      return;
-    }
-
-    currentRepo = repo;
-    currentBranch = branch;
-    currentFile = "CNAME";
-
-    currentSha = await getShaIfExists("CNAME");
-
-    editor.setValue(domain, -1);
-
-    await saveEditorFile();
-
-    toast("CNAME berhasil dibuat.");
-
-    document.getElementById("pagesStatus").innerHTML = `
-      <b>Custom Domain:</b> ${escapeHtml(domain)}
-    `;
-
-  } catch {
-    toast("Gagal set CNAME.");
+  if (!repo || !domain) {
+    toast("Repo / domain kosong.");
+    return;
   }
+
+  currentRepo = repo;
+  currentBranch = branch;
+  currentFile = "CNAME";
+  currentSha = await getShaIfExists("CNAME");
+
+  editor.setValue(domain, -1);
+
+  await saveEditorFile();
+
+  toast("CNAME dibuat.");
 }
 
 // ======================================
@@ -1084,116 +1113,9 @@ async function setCNAME() {
 // ======================================
 function clearStorage() {
   localStorage.clear();
-  toast("Local storage dibersihkan.");
+  toast("Storage dibersihkan.");
 }
 
 function toggleTheme() {
   document.body.classList.toggle("light");
-
-  if (document.body.classList.contains("light")) {
-    toast("Light mode aktif.");
-  } else {
-    toast("Dark mode aktif.");
-  }
 }
-
-// ======================================
-// PATCH NAV MENU
-// ======================================
-function activateMenuByPage(id) {
-  const map = {
-    dashboard: 0,
-    repos: 1,
-    files: 2,
-    editor: 3,
-    pages: 4,
-    settings: 5
-  };
-
-  document.querySelectorAll(".menu-btn")
-    .forEach(btn => btn.classList.remove("active"));
-
-  const buttons =
-    document.querySelectorAll(".menu-btn");
-
-  const idx = map[id];
-
-  if (buttons[idx]) {
-    buttons[idx].classList.add("active");
-  }
-}
-
-// overwrite showPage supaya menu sync
-const __oldShowPage = showPage;
-
-showPage = function(id, btn = null) {
-  __oldShowPage(id, btn);
-  activateMenuByPage(id);
-};
-
-// ======================================
-// EXTRA SHORTCUTS
-// ======================================
-document.addEventListener("keydown", e => {
-
-  // CTRL + S
-  if (e.ctrlKey && e.key.toLowerCase() === "s") {
-    e.preventDefault();
-
-    if (
-      document.getElementById("editor")
-      .classList.contains("active-page")
-    ) {
-      saveEditorFile();
-    }
-  }
-
-  // ESC close sidebar mobile
-  if (e.key === "Escape") {
-    document.getElementById("sidebar")
-      .classList.remove("show");
-  }
-
-});
-
-// ======================================
-// AUTO REFRESH PAGES STATUS
-// ======================================
-setInterval(() => {
-  const page =
-    document.getElementById("pages");
-
-  if (
-    page &&
-    page.classList.contains("active-page")
-  ) {
-    const repo =
-      document.getElementById("pagesRepo").value;
-
-    if (repo && currentUser) {
-      checkPagesStatus(repo);
-    }
-  }
-}, 15000);
-
-// ======================================
-// STARTUP PATCH
-// ======================================
-window.addEventListener("load", () => {
-
-  // default page
-  activateMenuByPage("dashboard");
-
-  // safety editor
-  if (!editor && window.ace) {
-    initEditor();
-  }
-
-});
-
-// ======================================
-// FINAL READY FLAG
-// ======================================
-console.log(
-  "GitHub Manager Premium Final Rebuild Loaded"
-);
